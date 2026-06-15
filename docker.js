@@ -32,29 +32,44 @@ export async function ensureImage(image, tag) {
     }
 }
 
+export async function ensureNetwork(name = 'voidock-network') {
+    try {
+        const network = docker.getNetwork(name);
+        await network.inspect();
+        return network;
+    } catch (err) {
+        if (err.statusCode === 404) {
+            return docker.createNetwork({
+                Name: name,
+                Driver: 'bridge',
+            });
+        }
+        throw err;
+    }
+}
+
 export async function runContainer(image, tag) {
+    await ensureNetwork();
+
     const container = await docker.createContainer({
         Image: `${image}:${tag}`,
+        ExposedPorts: {
+            '80/tcp': {},
+        },
         HostConfig: {
             AutoRemove: true,
         },
+        NetworkingConfig: {
+            EndpointsConfig: {
+                'voidock-network': {},
+            },
+        },
     });
 
-    const inspect = await container.inspect();
-
-    const network = docker.getNetwork('deploy-engine-netowrk');
-
-    try {
-        await network.connect({
-            Container: inspect.Id,
-        });
-    } catch (err) {
-        console.warn(
-            `Failed to connect container to network: ${err.message}`
-        );
-    }
-
     await container.start();
+
+    // Give the container a moment to initialize and start listening
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     return container.inspect();
 }
@@ -71,6 +86,40 @@ export async function listContainers(all = true) {
         state: container.State,
         status: container.Status,
     }));
+}
+
+export async function stopContainer(containerId) {
+    const container = docker.getContainer(containerId);
+    await container.stop({ t: 10 });
+    return container.inspect();
+}
+
+export async function startContainer(containerId) {
+    const container = docker.getContainer(containerId);
+    await container.start();
+    return container.inspect();
+}
+
+export async function restartContainer(containerId) {
+    const container = docker.getContainer(containerId);
+    await container.restart({ t: 10 });
+    return container.inspect();
+}
+
+export async function removeContainer(containerId) {
+    const container = docker.getContainer(containerId);
+    await container.remove({ force: true });
+    return { success: true };
+}
+
+export async function getContainerLogs(containerId, tail = 100) {
+    const container = docker.getContainer(containerId);
+    const logs = await container.logs({
+        stdout: true,
+        stderr: true,
+        tail,
+    });
+    return logs.toString();
 }
 
 export default docker;

@@ -233,6 +233,27 @@
       color: var(--red);
     }
 
+    .container-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .action-btn {
+      flex: 1;
+      min-width: 70px;
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--accent);
+      border-radius: 5px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .action-btn:hover { background: var(--accent-dim); }
+    .action-btn.danger { color: var(--red); border-color: var(--red); }
+    .action-btn.danger:hover { background: rgba(247,86,106,.1); }
 
     /* ── Footer ── */
     footer {
@@ -275,11 +296,37 @@
       Launch Container
     </div>
     <div class="card-body">
-      <label for="imageInput">Image</label>
-      <input id="imageInput" type="text" placeholder="nginx" value="nginx" />
+      <label for="imageInput">Image <span style="color: var(--muted); font-size: 0.75rem;">(type or select)</span></label>
+      <input
+        id="imageInput"
+        type="text"
+        placeholder="nginx, postgres, mysql, redis, node, python, ubuntu..."
+        value="nginx"
+        list="imageSuggestions"
+      />
+      <datalist id="imageSuggestions">
+        <option value="nginx" />
+        <option value="postgres" />
+        <option value="mysql" />
+        <option value="redis" />
+        <option value="mongodb" />
+        <option value="node" />
+        <option value="python" />
+        <option value="ubuntu" />
+        <option value="alpine" />
+        <option value="golang" />
+        <option value="rust" />
+        <option value="java" />
+        <option value="ruby" />
+        <option value="php" />
+        <option value="elasticsearch" />
+        <option value="rabbitmq" />
+        <option value="kafka" />
+        <option value="memcached" />
+      </datalist>
 
       <label for="tagInput">Tag</label>
-      <input id="tagInput" type="text" placeholder="latest" value="latest" />
+      <input id="tagInput" type="text" placeholder="latest" value="latest" style="margin-bottom: 14px;" />
 
       <button id="launchBtn" onclick="launchContainer()">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -398,22 +445,34 @@
       if (!list) return;
 
       if (!data.data || data.data.length === 0) {
-        list.innerHTML = `<div class="empty-state"><p>No containers running</p></div>`;
+        list.innerHTML = `<div class="empty-state"><p>No containers</p></div>`;
         return;
       }
 
-      list.innerHTML = data.data.map(container => `
-        <div class="container-card">
-          <div class="container-header">
-            <div class="container-name">${escHtml(container.name)}</div>
-            <span class="badge ${container.state === 'running' ? 'running' : 'stopped'}">
-              ${escHtml(container.state)}
-            </span>
-          </div>
-          <div class="container-meta">Image: ${escHtml(container.image)}</div>
-          <a class="container-domain" href="${container.url}" target="_blank">${container.domain}</a>
-        </div>
-      `).join('');
+      const running = data.data.filter(c => c.state === 'running');
+      const stopped = data.data.filter(c => c.state !== 'running');
+
+      let html = '';
+
+      if (running.length > 0) {
+        html += `<div style="margin-bottom: 20px;">
+          <div style="font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border);">
+            Running (${running.length})
+          </div>`;
+        html += running.map(container => renderContainer(container)).join('');
+        html += '</div>';
+      }
+
+      if (stopped.length > 0) {
+        html += `<div>
+          <div style="font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border);">
+            Stopped (${stopped.length})
+          </div>`;
+        html += stopped.map(container => renderContainer(container)).join('');
+        html += '</div>';
+      }
+
+      list.innerHTML = html;
     } catch (err) {
       const list = document.getElementById('containersList');
       if (list) {
@@ -422,6 +481,105 @@
     }
   }
 
+  function renderContainer(container) {
+    return `
+      <div class="container-card">
+        <div class="container-header">
+          <div class="container-name">${escHtml(container.name)}</div>
+          <span class="badge ${container.state === 'running' ? 'running' : 'stopped'}">
+            ${escHtml(container.state)}
+          </span>
+        </div>
+        <div class="container-meta">Image: ${escHtml(container.image)}</div>
+        <a class="container-domain" href="${container.url}" target="_blank">${container.domain}</a>
+        <div class="container-actions">
+          ${container.state === 'running' ? `
+            <button class="action-btn" onclick="stopContainer('${container.id}')">Stop</button>
+            <button class="action-btn" onclick="restartContainer('${container.id}')">Restart</button>
+            <button class="action-btn" onclick="viewLogs('${container.id}', '${container.name}')">Logs</button>
+          ` : `
+            <button class="action-btn" onclick="startContainer('${container.id}')">Start</button>
+          `}
+          <button class="action-btn danger" onclick="deleteContainer('${container.id}', '${container.name}')">Delete</button>
+        </div>
+      </div>
+    `;
+  }
+
+  // ── Container actions ──
+  async function stopContainer(id) {
+    if (!confirm('Stop this container?')) return;
+    try {
+      const res = await fetch(`/container/${id}/stop`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        await loadContainers();
+      } else {
+        alert('Error: ' + data.message);
+      }
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  }
+
+  async function startContainer(id) {
+    try {
+      const res = await fetch(`/container/${id}/start`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        await loadContainers();
+      } else {
+        alert('Error: ' + data.message);
+      }
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  }
+
+  async function restartContainer(id) {
+    if (!confirm('Restart this container?')) return;
+    try {
+      const res = await fetch(`/container/${id}/restart`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        await loadContainers();
+      } else {
+        alert('Error: ' + data.message);
+      }
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  }
+
+  async function deleteContainer(id, name) {
+    if (!confirm(`Delete container "${name}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/container/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (res.ok) {
+        await loadContainers();
+      } else {
+        alert('Error: ' + data.message);
+      }
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  }
+
+  async function viewLogs(id, name) {
+    try {
+      const res = await fetch(`/container/${id}/logs?tail=50`);
+      const data = await res.json();
+      if (res.ok) {
+        const logs = data.data || 'No logs available';
+        alert(`Logs for "${name}":\n\n${logs.substring(0, 500)}${logs.length > 500 ? '\n...' : ''}`);
+      } else {
+        alert('Error: ' + data.message);
+      }
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  }
 
   function escHtml(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
