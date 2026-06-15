@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VoiDock</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0d0f12;
+      --surface:   #151820;
+      --surface2:  #1c2030;
+      --border:    #262c3e;
+      --accent:    #4f8ef7;
+      --accent-dim:#2a4a8a;
+      --green:     #3ecf8e;
+      --red:       #f7566a;
+      --yellow:    #f7c948;
+      --text:      #e2e8f0;
+      --muted:     #8892a4;
+      --radius:    10px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 20px 32px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo svg { flex-shrink: 0; }
+    .logo-text { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; }
+    .logo-text span { color: var(--accent); }
+    .status-pill {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: var(--muted);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: 4px 12px;
+      border-radius: 999px;
+    }
+    .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background 0.3s;
+    }
+    .dot.online  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .dot.offline { background: var(--red);   box-shadow: 0 0 6px var(--red); }
+
+    /* ── Layout ── */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      padding: 32px;
+      max-width: 1100px;
+      margin: 0 auto;
+      width: 100%;
+    }
+    @media (max-width: 720px) { main { grid-template-columns: 1fr; } }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .card-header svg { opacity: 0.6; }
+    .card-body { padding: 20px; }
+
+    /* ── Form ── */
+    label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 6px; }
+    input[type="text"] {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: var(--text);
+      font-size: 0.9rem;
+      padding: 10px 14px;
+      outline: none;
+      transition: border-color 0.2s;
+      margin-bottom: 14px;
+    }
+    input[type="text"]:focus { border-color: var(--accent); }
+    input[type="text"]::placeholder { color: var(--muted); opacity: 0.6; }
+
+    button {
+      width: 100%;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      padding: 11px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: background 0.2s, opacity 0.2s;
+    }
+    button:hover  { background: #6aa0ff; }
+    button:active { opacity: 0.85; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .spinner {
+      width: 15px; height: 15px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Response panel ── */
+    .response-box {
+      margin-top: 16px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 14px;
+      font-size: 0.82rem;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      line-height: 1.6;
+      min-height: 80px;
+      color: var(--muted);
+      white-space: pre-wrap;
+      word-break: break-all;
+      transition: border-color 0.3s;
+    }
+    .response-box.success { border-color: var(--green); color: var(--green); }
+    .response-box.error   { border-color: var(--red);   color: var(--red); }
+
+    /* ── Result card ── */
+    .result-rows { display: flex; flex-direction: column; gap: 10px; }
+    .result-row {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 12px 16px;
+    }
+    .result-row .label { font-size: 0.72rem; color: var(--muted); margin-bottom: 3px; }
+    .result-row .value { font-size: 0.9rem; font-family: 'JetBrains Mono', monospace; color: var(--text); }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 600;
+    }
+    .badge.success { background: rgba(62,207,142,0.15); color: var(--green); }
+    .badge.error   { background: rgba(247, 86,106,0.15); color: var(--red); }
+
+    .empty-state {
+      text-align: center;
+      padding: 32px 20px;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .empty-state svg { opacity: 0.25; margin-bottom: 10px; }
+
+    
+    .container-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    .container-header {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:8px;
+    }
+    .container-name { font-weight:600; }
+    .container-domain {
+      color: var(--accent);
+      font-family: monospace;
+      margin-top: 6px;
+    }
+    .container-meta {
+      color: var(--muted);
+      font-size: .8rem;
+      margin-top: 4px;
+    }
+    .badge.running {
+      background: rgba(62,207,142,.15);
+      color: var(--green);
+    }
+    .badge.stopped {
+      background: rgba(247,86,106,.15);
+      color: var(--red);
+    }
+
+
+    /* ── Footer ── */
+    footer {
+      text-align: center;
+      padding: 16px;
+      font-size: 0.75rem;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <!-- whale-ish icon -->
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+      <rect width="28" height="28" rx="7" fill="#1c2030"/>
+      <path d="M6 18c0-4 3-7 8-7s8 3 8 7" stroke="#4f8ef7" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="14" cy="9" r="3" fill="#4f8ef7"/>
+      <path d="M10 18v2M14 18v3M18 18v2" stroke="#4f8ef7" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+    <span class="logo-text">Voi<span>Dock</span></span>
+  </div>
+  <div class="status-pill">
+    <div class="dot" id="statusDot"></div>
+    <span id="statusText">checking…</span>
+  </div>
+</header>
+
+<main>
+  <!-- Launch form -->
+  <div class="card">
+    <div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <rect x="1" y="1" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M4 7h6M7 4v6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      Launch Container
+    </div>
+    <div class="card-body">
+      <label for="imageInput">Image</label>
+      <input id="imageInput" type="text" placeholder="nginx" value="nginx" />
+
+      <label for="tagInput">Tag</label>
+      <input id="tagInput" type="text" placeholder="latest" value="latest" />
+
+      <button id="launchBtn" onclick="launchContainer()">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <path d="M3 7l4-4 4 4M7 3v8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span id="btnLabel">Launch</span>
+        <div class="spinner" id="spinner"></div>
+      </button>
+
+      <div class="response-box" id="responseBox">Waiting for launch…</div>
+    </div>
+  </div>
+
+  <!-- Result panel -->
+  <div class="card">
+    <div class="card-header">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M7 4v3l2 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      Running Containers
+    </div>
+    <div class="card-body">
+      <div id="containersList">
+        <div class="empty-state">
+          <p>Loading containers...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  VoiDock &mdash; Docker management API &middot; <a href="/health">/health</a>
+</footer>
+
+<script>
+  // ── Health check ──
+  async function checkHealth() {
+    try {
+      const res = await fetch('/health');
+      const dot  = document.getElementById('statusDot');
+      const text = document.getElementById('statusText');
+      if (res.ok) {
+        dot.className  = 'dot online';
+        text.textContent = 'API online';
+      } else {
+        throw new Error();
+      }
+    } catch {
+      document.getElementById('statusDot').className  = 'dot offline';
+      document.getElementById('statusText').textContent = 'API offline';
+    }
+  }
+  checkHealth();
+  setInterval(checkHealth, 15000);
+
+  // ── Launch container ──
+  async function launchContainer() {
+    const image = document.getElementById('imageInput').value.trim();
+    const tag   = document.getElementById('tagInput').value.trim();
+    const box   = document.getElementById('responseBox');
+    const btn   = document.getElementById('launchBtn');
+    const label = document.getElementById('btnLabel');
+    const spin  = document.getElementById('spinner');
+
+    if (!image || !tag) {
+      box.className = 'response-box error';
+      box.textContent = 'Error: image and tag are both required.';
+      return;
+    }
+
+    // Loading state
+    btn.disabled = true;
+    label.textContent = 'Launching…';
+    spin.style.display = 'block';
+    box.className = 'response-box';
+    box.textContent = `POST /container  →  ${image}:${tag}\nPulling image if not cached…`;
+
+    try {
+      const res  = await fetch('/container', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ image, tag }),
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        box.className = 'response-box success';
+        box.textContent = JSON.stringify(data, null, 2);
+
+        await loadContainers();
+      }      
+      else {
+        box.className = 'response-box error';
+        box.textContent = data.message || 'Failed to launch container';
+      }
+    } catch (err) {
+      box.className = 'response-box error';
+      box.textContent = `Network error: ${err.message}`;
+    } finally {
+      btn.disabled = false;
+      label.textContent = 'Launch';
+      spin.style.display = 'none';
+    }
+  }
+
+
+  
+  async function loadContainers() {
+    try {
+      const res = await fetch('/list');
+      const data = await res.json();
+
+      const list = document.getElementById('containersList');
+      if (!list) return;
+
+      if (!data.data || data.data.length === 0) {
+        list.innerHTML = `<div class="empty-state"><p>No containers running</p></div>`;
+        return;
+      }
+
+      list.innerHTML = data.data.map(container => `
+        <div class="container-card">
+          <div class="container-header">
+            <div class="container-name">${escHtml(container.name)}</div>
+            <span class="badge ${container.state === 'running' ? 'running' : 'stopped'}">
+              ${escHtml(container.state)}
+            </span>
+          </div>
+          <div class="container-meta">Image: ${escHtml(container.image)}</div>
+          <a class="container-domain" href="${container.url}" target="_blank">${container.domain}</a>
+        </div>
+      `).join('');
+    } catch (err) {
+      const list = document.getElementById('containersList');
+      if (list) {
+        list.innerHTML = `<div class="empty-state"><p>Failed to load containers</p></div>`;
+      }
+    }
+  }
+
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  loadContainers();
+  setInterval(loadContainers, 5000);
+</script>
+</body>
+</html>
