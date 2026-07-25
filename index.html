@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>VoiDock</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Crect width='28' height='28' rx='7' fill='%230d0f12'/%3E%3Cpath d='M6 18c0-4 3-7 8-7s8 3 8 7' stroke='%234f8ef7' stroke-width='2' stroke-linecap='round' fill='none'/%3E%3Ccircle cx='14' cy='9' r='3' fill='%234f8ef7'/%3E%3C/svg%3E" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -69,6 +70,19 @@
     .dot.online  { background: var(--green); box-shadow: 0 0 6px var(--green); }
     .dot.offline { background: var(--red);   box-shadow: 0 0 6px var(--red); }
 
+    .driver-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: var(--muted);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: 4px 12px;
+      border-radius: 999px;
+    }
+    .driver-pill strong { color: var(--text); font-weight: 600; text-transform: capitalize; }
+
     /* ── Layout ── */
     main {
       flex: 1;
@@ -106,7 +120,7 @@
 
     /* ── Form ── */
     label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 6px; }
-    input[type="text"] {
+    input[type="text"], input[type="number"], textarea {
       width: 100%;
       background: var(--surface2);
       border: 1px solid var(--border);
@@ -118,8 +132,103 @@
       transition: border-color 0.2s;
       margin-bottom: 14px;
     }
-    input[type="text"]:focus { border-color: var(--accent); }
-    input[type="text"]::placeholder { color: var(--muted); opacity: 0.6; }
+    input[type="text"]:focus, input[type="number"]:focus, textarea:focus { border-color: var(--accent); }
+    input[type="text"]::placeholder, input[type="number"]::placeholder, textarea::placeholder { color: var(--muted); opacity: 0.6; }
+    input:disabled, textarea:disabled { opacity: 0.5; cursor: not-allowed; }
+    textarea {
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 0.82rem;
+      resize: vertical;
+      min-height: 60px;
+    }
+    /* The dark surface makes the native OS spinner glyphs unreadable, and it's
+       redundant real estate on a port number anyway. */
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button { opacity: 0.4; }
+
+    /* ── Image picker ── */
+    .image-select-wrap { position: relative; }
+    .image-select-wrap input { padding-right: 34px; }
+    .dropdown-toggle {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 38px;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 0;
+      margin: 0;
+      border-radius: 0 7px 7px 0;
+      transition: color 0.15s, transform 0.15s;
+    }
+    .dropdown-toggle:hover { color: var(--accent); }
+    .dropdown-toggle svg { transition: transform 0.15s; }
+    .dropdown-toggle.open svg { transform: rotate(180deg); }
+    .image-dropdown {
+      display: none;
+      position: absolute;
+      top: calc(100% - 10px);
+      left: 0;
+      right: 0;
+      z-index: 20;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      max-height: 280px;
+      overflow-y: auto;
+      padding: 6px 0;
+    }
+    .image-dropdown.open { display: block; }
+    .image-dropdown-label {
+      font-size: 0.68rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 8px 14px 4px;
+    }
+    .image-dropdown-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 14px;
+      cursor: pointer;
+      font-size: 0.85rem;
+    }
+    .image-dropdown-item:hover:not(.disabled) { background: var(--surface); }
+    .image-dropdown-item.disabled { opacity: 0.4; cursor: not-allowed; }
+    .image-dropdown-empty { padding: 10px 14px; font-size: 0.8rem; color: var(--muted); }
+    .pill {
+      flex-shrink: 0;
+      font-size: 0.65rem;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+    .pill-http { background: rgba(62,207,142,.15); color: var(--green); }
+    .pill-tcp  { background: rgba(79,142,247,.15); color: var(--accent); }
+
+    .inline-warning {
+      display: none;
+      font-size: 0.78rem;
+      line-height: 1.5;
+      color: var(--yellow);
+      background: rgba(247,201,72,.1);
+      border: 1px solid rgba(247,201,72,.3);
+      border-radius: 7px;
+      padding: 8px 12px;
+      margin: -6px 0 14px;
+    }
+    .inline-warning.show { display: block; }
+    .inline-warning a { color: var(--accent); cursor: pointer; text-decoration: underline; }
 
     button {
       width: 100%;
@@ -211,26 +320,62 @@
       display:flex;
       justify-content:space-between;
       align-items:center;
+      gap: 10px;
       margin-bottom:8px;
     }
-    .container-name { font-weight:600; }
-    .container-domain {
-      color: var(--accent);
-      font-family: monospace;
+    .container-name { font-weight:600; overflow-wrap: anywhere; }
+    .container-domain-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
       margin-top: 6px;
     }
+    .container-domain {
+      color: var(--accent);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      text-decoration: none;
+      overflow-wrap: anywhere;
+    }
+    .container-domain:hover { text-decoration: underline; }
+    .copy-btn {
+      flex-shrink: 0;
+      width: 22px;
+      height: 22px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 0;
+    }
+    .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
     .container-meta {
       color: var(--muted);
       font-size: .8rem;
       margin-top: 4px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 10px;
     }
-    .badge.running {
-      background: rgba(62,207,142,.15);
-      color: var(--green);
-    }
-    .badge.stopped {
-      background: rgba(247,86,106,.15);
-      color: var(--red);
+    .container-meta .sep { opacity: 0.4; }
+
+    .badge { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+    .badge-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .badge.running { background: rgba(62,207,142,.15); color: var(--green); }
+    .badge.running .badge-dot { background: var(--green); }
+    .badge.starting { background: rgba(247,201,72,.15); color: var(--yellow); }
+    .badge.starting .badge-dot { background: var(--yellow); animation: pulse 1.1s ease-in-out infinite; }
+    .badge.stopped { background: rgba(136,146,164,.15); color: var(--muted); }
+    .badge.stopped .badge-dot { background: var(--muted); }
+    .badge.dead { background: rgba(247,86,106,.15); color: var(--red); }
+    .badge.dead .badge-dot { background: var(--red); }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%      { opacity: 0.4; transform: scale(0.7); }
     }
 
     .container-actions {
@@ -252,8 +397,121 @@
       transition: all 0.2s;
     }
     .action-btn:hover { background: var(--accent-dim); }
+    .action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
     .action-btn.danger { color: var(--red); border-color: var(--red); }
     .action-btn.danger:hover { background: rgba(247,86,106,.1); }
+
+    .section-label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .list-updated {
+      font-size: 0.72rem;
+      color: var(--muted);
+      opacity: 0.7;
+    }
+    .list-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 14px;
+    }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(5,6,9,0.7);
+      backdrop-filter: blur(2px);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      width: 100%;
+      max-width: 680px;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .modal-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+    .modal-header .close-btn {
+      width: auto;
+      background: transparent;
+      color: var(--muted);
+      padding: 4px 8px;
+      font-size: 1.1rem;
+      line-height: 1;
+    }
+    .modal-header .close-btn:hover { color: var(--text); background: var(--surface2); }
+    .modal-body {
+      padding: 16px 18px;
+      overflow-y: auto;
+      flex: 1;
+    }
+    .modal-body pre {
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 0.78rem;
+      line-height: 1.6;
+      color: var(--text);
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .modal-footer {
+      padding: 12px 18px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 8px;
+    }
+    .modal-footer button { width: auto; padding: 8px 16px; font-size: 0.8rem; }
+    .modal-footer button.secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .modal-footer button.secondary:hover { background: var(--surface2); }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s, transform 0.2s;
+      z-index: 200;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
 
     /* ── Footer ── */
     footer {
@@ -279,6 +537,9 @@
     </svg>
     <span class="logo-text">Voi<span>Dock</span></span>
   </div>
+  <div class="driver-pill" id="driverPill" style="display:none">
+    <span>engine:</span> <strong id="driverText">—</strong>
+  </div>
   <div class="status-pill">
     <div class="dot" id="statusDot"></div>
     <span id="statusText">checking…</span>
@@ -296,37 +557,47 @@
       Launch Container
     </div>
     <div class="card-body">
-      <label for="imageInput">Image <span style="color: var(--muted); font-size: 0.75rem;">(type or select)</span></label>
-      <input
-        id="imageInput"
-        type="text"
-        placeholder="nginx, postgres, mysql, redis, node, python, ubuntu..."
-        value="nginx"
-        list="imageSuggestions"
-      />
-      <datalist id="imageSuggestions">
-        <option value="nginx" />
-        <option value="postgres" />
-        <option value="mysql" />
-        <option value="redis" />
-        <option value="mongodb" />
-        <option value="node" />
-        <option value="python" />
-        <option value="ubuntu" />
-        <option value="alpine" />
-        <option value="golang" />
-        <option value="rust" />
-        <option value="java" />
-        <option value="ruby" />
-        <option value="php" />
-        <option value="elasticsearch" />
-        <option value="rabbitmq" />
-        <option value="kafka" />
-        <option value="memcached" />
-      </datalist>
+      <label for="imageInput">Image <span style="color: var(--muted); font-size: 0.75rem;">(type or pick below)</span></label>
+      <div class="image-select-wrap">
+        <input
+          id="imageInput"
+          type="text"
+          placeholder="nginx, httpd, caddy, your-registry/your-app..."
+          value="nginx"
+          autocomplete="off"
+          onfocus="openImageDropdown()"
+          oninput="onImageInput()"
+        />
+        <button type="button" id="dropdownToggle" class="dropdown-toggle" title="Browse images" onclick="toggleImageDropdown()">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M2.5 4.5L6 8l3.5-3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <div class="image-dropdown" id="imageDropdown"></div>
+      </div>
+      <div class="inline-warning" id="imageWarning"></div>
+      <p style="font-size: 0.72rem; color: var(--muted); margin: -8px 0 14px; line-height: 1.5;">
+        Must serve plain HTTP — port 80 by default, or set <code>WORKLOAD_PORT</code> to match. Non-HTTP images (Postgres, Redis, Kafka, ...) need the TCP port below instead — the domain above will never work for them.
+      </p>
 
       <label for="tagInput">Tag</label>
       <input id="tagInput" type="text" placeholder="latest" value="latest" style="margin-bottom: 14px;" />
+
+      <label for="portInput">
+        TCP Port <span style="color: var(--muted); font-size: 0.75rem;">(optional — for non-HTTP images)</span>
+      </label>
+      <input id="portInput" type="number" min="1" max="65535" placeholder="e.g. 6379 for Redis, 5432 for Postgres" style="margin-bottom: 4px;" oninput="updateImageWarning()" />
+      <p id="portHint" style="font-size: 0.72rem; color: var(--muted); margin: 0 0 14px; line-height: 1.5;">
+        Publishes this container-internal port directly, bypassing the HTTP proxy entirely — connect with the service's own client (<code>redis-cli</code>, <code>psql</code>, ...), not a browser. Docker driver only. The assigned port can change after a stop/restart — always check the address shown on the card, don't hardcode it.
+      </p>
+
+      <label for="envInput">
+        Environment Variables <span style="color: var(--muted); font-size: 0.75rem;">(optional — one <code>KEY=value</code> per line)</span>
+      </label>
+      <textarea id="envInput" placeholder="POSTGRES_PASSWORD=changeme" oninput="updateImageWarning()"></textarea>
+      <p style="font-size: 0.72rem; color: var(--muted); margin: -8px 0 14px; line-height: 1.5;">
+        Some images (Postgres, MySQL, ...) refuse to boot at all without a credential passed this way. Values are sent once at launch — not visible again after, so save them if you'll need them.
+      </p>
 
       <button id="launchBtn" onclick="launchContainer()">
         <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -350,9 +621,14 @@
       Running Containers
     </div>
     <div class="card-body">
+      <div class="list-header-row">
+        <span></span>
+        <span class="list-updated" id="lastUpdated"></span>
+      </div>
       <div id="containersList">
         <div class="empty-state">
-          <p>Loading containers...</p>
+          <div class="spinner" style="display:inline-block;border-color:rgba(136,146,164,0.3);border-top-color:var(--muted);"></div>
+          <p style="margin-top:10px;">Loading containers…</p>
         </div>
       </div>
     </div>
@@ -363,16 +639,67 @@
   VoiDock &mdash; Docker management API &middot; <a href="/health">/health</a>
 </footer>
 
+<!-- Logs modal -->
+<div class="modal-overlay" id="logsModal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span id="logsModalTitle">Logs</span>
+      <button class="close-btn" onclick="closeLogsModal()" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <pre id="logsModalBody">Loading logs…</pre>
+    </div>
+    <div class="modal-footer">
+      <button onclick="refreshLogs()">Refresh</button>
+      <button class="secondary" onclick="copyLogs()">Copy</button>
+      <button class="secondary" onclick="closeLogsModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
 <script>
   // ── Health check ──
+  let currentDriver = null;
+
   async function checkHealth() {
     try {
       const res = await fetch('/health');
+      const data = await res.json();
       const dot  = document.getElementById('statusDot');
       const text = document.getElementById('statusText');
       if (res.ok) {
         dot.className  = 'dot online';
         text.textContent = 'API online';
+
+        if (data.driver) {
+          const driverChanged = currentDriver !== null && currentDriver !== data.driver;
+          currentDriver = data.driver;
+
+          const pill = document.getElementById('driverPill');
+          document.getElementById('driverText').textContent = data.driver;
+          pill.title = data.driver === 'sandbox'
+            ? 'Workloads run in isolated Vercel Sandbox microVMs'
+            : 'Workloads run as containers on a local Docker daemon';
+          pill.style.display = 'flex';
+
+          // Vercel Sandbox has no raw TCP passthrough — sandbox.domain() is
+          // HTTPS-only, so the TCP port field can never work on that driver.
+          const portInput = document.getElementById('portInput');
+          const portHint  = document.getElementById('portHint');
+          if (data.driver === 'sandbox') {
+            portInput.disabled = true;
+            portInput.placeholder = 'Not available on the sandbox driver';
+            portHint.textContent = 'Unsupported on the sandbox driver — Vercel Sandbox only exposes HTTP(S).';
+          } else {
+            portInput.disabled = false;
+            portInput.placeholder = 'e.g. 6379 for Redis, 5432 for Postgres';
+          }
+
+          updateImageWarning();
+          if (driverChanged) renderImageDropdown();
+        }
       } else {
         throw new Error();
       }
@@ -384,18 +711,258 @@
   checkHealth();
   setInterval(checkHealth, 15000);
 
+  // ── Small helpers ──
+  let toastTimer;
+  function showToast(message) {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+  }
+
+  async function copyText(text, label) {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // Clipboard API unavailable (e.g. insecure context) — fall back silently.
+    }
+    showToast(`${label} copied to clipboard`);
+  }
+
+  function timeAgo(ts) {
+    const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+    if (s < 5) return 'just now';
+    if (s < 60) return `${s}s ago`;
+    const m = Math.round(s / 60);
+    return `${m}m ago`;
+  }
+
+  // ── Image picker ──
+  // `http: false` entries can never get a working URL through either driver's
+  // *domain* — they need `port` (docker driver only). Listed here so the picker
+  // can warn or block before a launch that's guaranteed to fail, rather than
+  // making the user wait out a ~60s sandbox timeout to find out.
+  //
+  // `needsEnv: true` — verified live, not assumed: official postgres and mysql
+  // refuse to even boot without a password passed as an env var at first start
+  // (`POSTGRES_PASSWORD`, `MYSQL_ROOT_PASSWORD`/`MYSQL_ALLOW_EMPTY_PASSWORD`).
+  // POST /container has no way to set env vars, so these fail every time,
+  // regardless of the port — bitnami/kafka is the same story in KRaft mode
+  // (needs KAFKA_CFG_NODE_ID etc.) per Bitnami's docs, not independently
+  // re-verified here. redis, mongo, rabbitmq, and memcached all boot with a
+  // working (if insecure) default and need nothing extra.
+  const IMAGE_CATALOG = [
+    { image: 'nginx', tag: 'alpine', http: true },
+    { image: 'httpd', tag: 'alpine', http: true },
+    { image: 'caddy', tag: 'latest', http: true },
+    { image: 'traefik/whoami', tag: 'latest', http: true },
+    { image: 'redis', tag: 'alpine', http: false, port: 6379 },
+    { image: 'mongo', tag: '7', http: false, port: 27017 },
+    { image: 'rabbitmq', tag: '3', http: false, port: 5672 },
+    { image: 'memcached', tag: 'alpine', http: false, port: 11211 },
+    // `requiredEnvKey` is set only where verified live — postgres and mysql both
+    // exit immediately without it. bitnami/kafka needs several KRaft env vars, not
+    // just one, so it's flagged `needsEnv` for the warning but left unenforced.
+    { image: 'postgres', tag: '16', http: false, port: 5432, needsEnv: true, requiredEnvKey: 'POSTGRES_PASSWORD' },
+    { image: 'mysql', tag: '8', http: false, port: 3306, needsEnv: true, requiredEnvKey: 'MYSQL_ROOT_PASSWORD' },
+    { image: 'bitnami/kafka', tag: 'latest', http: false, port: 9092, needsEnv: true },
+  ];
+
+  function catalogMatch(imageValue) {
+    const needle = imageValue.trim().toLowerCase();
+    return IMAGE_CATALOG.find((c) => c.image.toLowerCase() === needle) || null;
+  }
+
+  // Not for anything beyond "don't ship an obviously-empty default" — a launch
+  // credential typed into a form isn't a security boundary either way.
+  function genPassword() {
+    return Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
+  }
+
+  function parseEnvTextarea() {
+    const env = {};
+    for (const line of document.getElementById('envInput').value.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eq = trimmed.indexOf('=');
+      if (eq === -1) continue;
+      env[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim();
+    }
+    return env;
+  }
+
+  function selectImage(image, tag, port) {
+    document.getElementById('imageInput').value = image;
+    document.getElementById('tagInput').value = tag;
+    const portInput = document.getElementById('portInput');
+    if (port && !portInput.disabled) portInput.value = port;
+
+    // Auto-fill the required credential so the image actually boots — but only
+    // into an empty box, never overwriting env vars the user already typed.
+    const match = catalogMatch(image);
+    const envInput = document.getElementById('envInput');
+    if (match?.requiredEnvKey && !envInput.value.trim()) {
+      envInput.value = `${match.requiredEnvKey}=${genPassword()}`;
+    }
+
+    closeImageDropdown(); // also re-evaluates the warning now that it's visible again
+  }
+
+  function renderImageDropdown(showAll) {
+    const dropdown = document.getElementById('imageDropdown');
+    const filter = showAll ? '' : document.getElementById('imageInput').value.trim().toLowerCase();
+    const matches = IMAGE_CATALOG.filter((c) => c.image.toLowerCase().includes(filter));
+    const httpItems = matches.filter((c) => c.http);
+    const tcpItems = matches.filter((c) => !c.http);
+
+    const row = (c) => {
+      const disabled = !c.http && currentDriver === 'sandbox';
+      const badge = c.http
+        ? `<span class="pill pill-http">HTTP</span>`
+        : `<span class="pill pill-tcp">TCP :${c.port}</span>`;
+      const title = disabled ? 'Requires the docker driver — unavailable on sandbox' : '';
+      const onclick = disabled
+        ? `showToast('${escAttr(c.image)} needs the docker driver — Vercel Sandbox only exposes HTTP(S)')`
+        : `selectImage('${escAttr(c.image)}', '${escAttr(c.tag)}', ${c.port || 'null'})`;
+      return `<div class="image-dropdown-item${disabled ? ' disabled' : ''}" title="${title}" onclick="${onclick}">
+        <span>${escHtml(c.image)}</span>${badge}
+      </div>`;
+    };
+
+    let html = '';
+    if (httpItems.length) {
+      html += `<div class="image-dropdown-label">HTTP — works out of the box</div>` + httpItems.map(row).join('');
+    }
+    if (tcpItems.length) {
+      html += `<div class="image-dropdown-label">Non-HTTP — needs the TCP port field</div>` + tcpItems.map(row).join('');
+    }
+    if (!httpItems.length && !tcpItems.length) {
+      html = `<div class="image-dropdown-empty">No suggestions match — any image name still works, we just can't tell you its protocol.</div>`;
+    }
+    dropdown.innerHTML = html;
+  }
+
+  function openImageDropdown() {
+    renderImageDropdown(false);
+    document.getElementById('imageDropdown').classList.add('open');
+    document.getElementById('dropdownToggle').classList.add('open');
+  }
+  function closeImageDropdown() {
+    document.getElementById('imageDropdown').classList.remove('open');
+    document.getElementById('dropdownToggle').classList.remove('open');
+    // The banner and the dropdown occupy the same space (dropdown is absolutely
+    // positioned right over it) — only reveal the banner once nothing covers it.
+    updateImageWarning();
+  }
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.image-select-wrap')) closeImageDropdown();
+  });
+
+  // The always-visible chevron button — unlike focus/typing, this browses the
+  // full catalog regardless of whatever is currently typed, like a native
+  // <select>'s arrow, and toggles shut if already open.
+  function toggleImageDropdown() {
+    const isOpen = document.getElementById('imageDropdown').classList.contains('open');
+    if (isOpen) {
+      closeImageDropdown();
+      return;
+    }
+    renderImageDropdown(true);
+    document.getElementById('imageDropdown').classList.add('open');
+    document.getElementById('dropdownToggle').classList.add('open');
+  }
+
+  function onImageInput() {
+    renderImageDropdown(false);
+    document.getElementById('imageDropdown').classList.add('open');
+    document.getElementById('dropdownToggle').classList.add('open');
+    updateImageWarning();
+  }
+
+  // Surfaces the exact "why" before a launch that's guaranteed to fail (sandbox +
+  // non-HTTP) or silently unreachable (docker + non-HTTP + no port set), instead
+  // of letting the user discover it from a slow timeout or a dead-looking URL.
+  function updateImageWarning() {
+    const warning = document.getElementById('imageWarning');
+    const dropdownOpen = document.getElementById('imageDropdown').classList.contains('open');
+    const match = catalogMatch(document.getElementById('imageInput').value);
+    const port = document.getElementById('portInput').value.trim();
+
+    // The open dropdown already shows an HTTP/TCP badge per row; showing the
+    // banner underneath it at the same time would just render invisible.
+    if (!match || match.http || dropdownOpen) {
+      warning.classList.remove('show');
+      return;
+    }
+
+    if (currentDriver === 'sandbox') {
+      warning.innerHTML = `⚠ <strong>${escHtml(match.image)}</strong> doesn't speak HTTP — Vercel Sandbox only exposes HTTP(S), so this can never be reached from outside its sandbox. Use the <code>docker</code> driver for this image, or a managed service (e.g. Upstash for Redis).`;
+      warning.classList.add('show');
+      return;
+    }
+
+    if (!port) {
+      warning.innerHTML = `⚠ <strong>${escHtml(match.image)}</strong> doesn't speak HTTP — the domain above will never work for it. <a onclick="document.getElementById('portInput').value=${match.port}; updateImageWarning();">Set TCP port to ${match.port}</a> to make it reachable.`;
+      warning.classList.add('show');
+      return;
+    }
+
+    if (match.requiredEnvKey && !(match.requiredEnvKey in parseEnvTextarea())) {
+      warning.innerHTML = `⚠ <strong>${escHtml(match.image)}</strong> won't boot without <code>${escHtml(match.requiredEnvKey)}</code> — it exits immediately on first start without it. <a onclick="document.getElementById('envInput').value='${escAttr(match.requiredEnvKey)}='+Math.random().toString(36).slice(2,10); updateImageWarning();">Fill in a generated one</a>.`;
+      warning.classList.add('show');
+      return;
+    }
+
+    if (match.needsEnv && !match.requiredEnvKey) {
+      warning.innerHTML = `ℹ <strong>${escHtml(match.image)}</strong> commonly needs several env vars to boot (check the image's docs) — not enforced here, so a launch may still fail if they're missing.`;
+      warning.classList.add('show');
+      return;
+    }
+
+    warning.classList.remove('show');
+  }
+
   // ── Launch container ──
   async function launchContainer() {
-    const image = document.getElementById('imageInput').value.trim();
-    const tag   = document.getElementById('tagInput').value.trim();
-    const box   = document.getElementById('responseBox');
-    const btn   = document.getElementById('launchBtn');
-    const label = document.getElementById('btnLabel');
-    const spin  = document.getElementById('spinner');
+    const image    = document.getElementById('imageInput').value.trim();
+    const tag      = document.getElementById('tagInput').value.trim();
+    const portRaw  = document.getElementById('portInput').value.trim();
+    const box      = document.getElementById('responseBox');
+    const btn      = document.getElementById('launchBtn');
+    const label    = document.getElementById('btnLabel');
+    const spin     = document.getElementById('spinner');
 
     if (!image || !tag) {
       box.className = 'response-box error';
       box.textContent = 'Error: image and tag are both required.';
+      return;
+    }
+
+    const port = portRaw ? Number(portRaw) : undefined;
+    if (portRaw && (!Number.isInteger(port) || port < 1 || port > 65535)) {
+      box.className = 'response-box error';
+      box.textContent = 'Error: TCP port must be an integer between 1 and 65535.';
+      return;
+    }
+
+    // A known non-HTTP image on the sandbox driver is guaranteed to fail after a
+    // ~60s timeout — reject it immediately instead of making the user wait to
+    // learn what updateImageWarning() already told them.
+    const match = catalogMatch(image);
+    if (match && !match.http && currentDriver === 'sandbox') {
+      box.className = 'response-box error';
+      box.textContent = `Error: "${image}" doesn't speak HTTP — Vercel Sandbox only exposes HTTP(S), so it can never be reached from outside its own sandbox. This isn't a timeout to wait out; use the docker driver for this image, or a managed service instead.`;
+      return;
+    }
+
+    const env = parseEnvTextarea();
+
+    // Verified live: postgres/mysql exit immediately without this — no point
+    // spending a pull + boot cycle to relearn that.
+    if (match?.requiredEnvKey && !(match.requiredEnvKey in env)) {
+      box.className = 'response-box error';
+      box.textContent = `Error: "${image}" requires ${match.requiredEnvKey} to be set in Environment Variables — it exits immediately on first start without it.`;
       return;
     }
 
@@ -404,13 +971,17 @@
     label.textContent = 'Launching…';
     spin.style.display = 'block';
     box.className = 'response-box';
-    box.textContent = `POST /container  →  ${image}:${tag}\nPulling image if not cached…`;
+    box.textContent = `POST /container  →  ${image}:${tag}${port ? ` (tcp:${port})` : ''}\nPulling image if not cached…`;
 
     try {
+      const body = { image, tag };
+      if (port) body.port = port;
+      if (Object.keys(env).length) body.env = env;
+
       const res  = await fetch('/container', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ image, tag }),
+        body:    JSON.stringify(body),
       });
       const data = await res.json();
 
@@ -436,6 +1007,20 @@
 
 
   
+  // Sandbox workloads spend real time as `starting` (installing Docker, pulling the
+  // image) before `running` — a state the docker driver never produces. Buckets are
+  // ordered by how much attention each deserves: active first, terminal last.
+  const BUCKETS = [
+    { key: 'running',  label: 'Running' },
+    { key: 'starting', label: 'Starting' },
+    { key: 'stopped',  label: 'Stopped' },
+    { key: 'dead',     label: 'Dead' },
+  ];
+  const bucketOf = (state) =>
+    state === 'running' || state === 'starting' || state === 'dead' ? state : 'stopped';
+
+  let lastFetchedAt = null;
+
   async function loadContainers() {
     try {
       const res = await fetch('/list');
@@ -444,31 +1029,27 @@
       const list = document.getElementById('containersList');
       if (!list) return;
 
+      lastFetchedAt = Date.now();
+      updateLastUpdatedLabel();
+
       if (!data.data || data.data.length === 0) {
-        list.innerHTML = `<div class="empty-state"><p>No containers</p></div>`;
+        list.innerHTML = `<div class="empty-state"><p>No containers yet — launch one on the left.</p></div>`;
         return;
       }
 
-      const running = data.data.filter(c => c.state === 'running');
-      const stopped = data.data.filter(c => c.state !== 'running');
+      const grouped = Object.fromEntries(BUCKETS.map((b) => [b.key, []]));
+      for (const c of data.data) grouped[bucketOf(c.state)].push(c);
 
       let html = '';
-
-      if (running.length > 0) {
+      for (const { key, label } of BUCKETS) {
+        const items = grouped[key];
+        if (items.length === 0) continue;
         html += `<div style="margin-bottom: 20px;">
-          <div style="font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border);">
-            Running (${running.length})
+          <div class="section-label">
+            <span class="badge-dot" style="background:${badgeDotColor(key)}"></span>
+            ${label} (${items.length})
           </div>`;
-        html += running.map(container => renderContainer(container)).join('');
-        html += '</div>';
-      }
-
-      if (stopped.length > 0) {
-        html += `<div>
-          <div style="font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--border);">
-            Stopped (${stopped.length})
-          </div>`;
-        html += stopped.map(container => renderContainer(container)).join('');
+        html += items.map(renderContainer).join('');
         html += '</div>';
       }
 
@@ -476,113 +1057,150 @@
     } catch (err) {
       const list = document.getElementById('containersList');
       if (list) {
-        list.innerHTML = `<div class="empty-state"><p>Failed to load containers</p></div>`;
+        list.innerHTML = `<div class="empty-state"><p>Failed to load containers — retrying…</p></div>`;
       }
     }
   }
 
+  function badgeDotColor(state) {
+    return { running: 'var(--green)', starting: 'var(--yellow)', dead: 'var(--red)' }[state]
+      || 'var(--muted)';
+  }
+
+  function updateLastUpdatedLabel() {
+    const el = document.getElementById('lastUpdated');
+    if (el && lastFetchedAt) el.textContent = `Updated ${timeAgo(lastFetchedAt)}`;
+  }
+  setInterval(updateLastUpdatedLabel, 1000);
+
+  const STATUS_LABEL = { running: 'Running', starting: 'Starting…', stopped: 'Stopped', dead: 'Dead' };
+
   function renderContainer(container) {
+    const bucket = bucketOf(container.state);
+    const actionsByBucket = {
+      running: `
+        <button class="action-btn" onclick="stopContainer('${container.id}')">Stop</button>
+        <button class="action-btn" onclick="restartContainer('${container.id}')">Restart</button>
+        <button class="action-btn" onclick="viewLogs('${container.id}', '${escAttr(container.name)}')">Logs</button>
+      `,
+      starting: `
+        <button class="action-btn" disabled>
+          <div class="spinner" style="display:inline-block;width:11px;height:11px;border-width:2px;margin-right:6px;"></div>
+          Starting…
+        </button>
+      `,
+      stopped: `<button class="action-btn" onclick="startContainer('${container.id}')">Start</button>`,
+      dead: '',
+    };
+
     return `
-      <div class="container-card">
+      <div class="container-card" data-container-id="${escAttr(container.id)}">
         <div class="container-header">
-          <div class="container-name">${escHtml(container.name)}</div>
-          <span class="badge ${container.state === 'running' ? 'running' : 'stopped'}">
-            ${escHtml(container.state)}
+          <div class="container-name" title="${escAttr(container.id)}">${escHtml(container.name)}</div>
+          <span class="badge ${bucket}" title="${escAttr(container.status || '')}">
+            <span class="badge-dot"></span>${STATUS_LABEL[bucket] || escHtml(container.state)}
           </span>
         </div>
-        <div class="container-meta">Image: ${escHtml(container.image)}</div>
-        <a class="container-domain" href="${container.url}" target="_blank">${container.domain}</a>
+        <div class="container-meta">
+          <span title="${escAttr(container.image)}">📦 ${escHtml(container.image)}</span>
+        </div>
+        <div class="container-domain-row">
+          ${container.url
+            ? `<a class="container-domain" href="${escHtml(container.url)}" target="_blank" rel="noopener">${escHtml(container.domain)}</a>
+               <button class="copy-btn" title="Copy URL" onclick="copyText('${escAttr(container.url)}', 'URL')">⧉</button>`
+            : `<span class="container-domain" style="opacity:0.5;cursor:default">${escHtml(container.domain)}</span>`}
+        </div>
+        ${container.tcpAddress ? `
+        <div class="container-domain-row" title="Raw TCP — connect with the service's own client, not a browser. Changes on stop/restart.">
+          <span class="container-domain">🔌 ${escHtml(container.tcpAddress)}</span>
+          <button class="copy-btn" title="Copy TCP address" onclick="copyText('${escAttr(container.tcpAddress)}', 'TCP address')">⧉</button>
+        </div>` : ''}
         <div class="container-actions">
-          ${container.state === 'running' ? `
-            <button class="action-btn" onclick="stopContainer('${container.id}')">Stop</button>
-            <button class="action-btn" onclick="restartContainer('${container.id}')">Restart</button>
-            <button class="action-btn" onclick="viewLogs('${container.id}', '${container.name}')">Logs</button>
-          ` : `
-            <button class="action-btn" onclick="startContainer('${container.id}')">Start</button>
-          `}
-          <button class="action-btn danger" onclick="deleteContainer('${container.id}', '${container.name}')">Delete</button>
+          ${actionsByBucket[bucket]}
+          <button class="action-btn danger" onclick="deleteContainer('${container.id}', '${escAttr(container.name)}')">Delete</button>
         </div>
       </div>
     `;
   }
 
   // ── Container actions ──
-  async function stopContainer(id) {
-    if (!confirm('Stop this container?')) return;
+  // Runs a lifecycle action with a shared try/catch/toast shape, disabling every
+  // action button on the card so a slow request (a sandbox restart can take ~30s)
+  // can't be double-fired by an impatient click.
+  async function runAction(id, { method, path, confirmMessage, busyLabel }) {
+    if (confirmMessage && !confirm(confirmMessage)) return;
+
+    const card = document.querySelector(`[data-container-id="${id}"]`) || null;
+    const buttons = card ? card.querySelectorAll('.action-btn') : [];
+    buttons.forEach((b) => { b.disabled = true; });
+    if (busyLabel && buttons[0]) buttons[0].textContent = busyLabel;
+
     try {
-      const res = await fetch(`/container/${id}/stop`, { method: 'POST' });
+      const res = await fetch(`/container/${id}${path}`, { method });
       const data = await res.json();
       if (res.ok) {
-        await loadContainers();
+        showToast(data.message || 'Done');
       } else {
-        alert('Error: ' + data.message);
+        showToast(`Error: ${data.message}`);
       }
     } catch (err) {
-      alert('Error: ' + err.message);
+      showToast(`Network error: ${err.message}`);
+    } finally {
+      await loadContainers();
     }
   }
 
-  async function startContainer(id) {
-    try {
-      const res = await fetch(`/container/${id}/start`, { method: 'POST' });
-      const data = await res.json();
-      if (res.ok) {
-        await loadContainers();
-      } else {
-        alert('Error: ' + data.message);
-      }
-    } catch (err) {
-      alert('Error: ' + err.message);
-    }
-  }
+  const stopContainer    = (id) => runAction(id, { method: 'POST', path: '/stop', confirmMessage: 'Stop this container?' });
+  const startContainer   = (id) => runAction(id, { method: 'POST', path: '/start' });
+  const restartContainer = (id) => runAction(id, { method: 'POST', path: '/restart', confirmMessage: 'Restart this container?', busyLabel: 'Restarting…' });
+  const deleteContainer  = (id, name) => runAction(id, { method: 'DELETE', path: '', confirmMessage: `Delete container "${name}"? This cannot be undone.` });
 
-  async function restartContainer(id) {
-    if (!confirm('Restart this container?')) return;
-    try {
-      const res = await fetch(`/container/${id}/restart`, { method: 'POST' });
-      const data = await res.json();
-      if (res.ok) {
-        await loadContainers();
-      } else {
-        alert('Error: ' + data.message);
-      }
-    } catch (err) {
-      alert('Error: ' + err.message);
-    }
-  }
-
-  async function deleteContainer(id, name) {
-    if (!confirm(`Delete container "${name}"? This cannot be undone.`)) return;
-    try {
-      const res = await fetch(`/container/${id}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (res.ok) {
-        await loadContainers();
-      } else {
-        alert('Error: ' + data.message);
-      }
-    } catch (err) {
-      alert('Error: ' + err.message);
-    }
-  }
+  // ── Logs modal ──
+  let currentLogsId = null;
 
   async function viewLogs(id, name) {
+    currentLogsId = id;
+    document.getElementById('logsModalTitle').textContent = `Logs — ${name}`;
+    document.getElementById('logsModal').classList.add('open');
+    await refreshLogs();
+  }
+
+  async function refreshLogs() {
+    const body = document.getElementById('logsModalBody');
+    body.textContent = 'Loading logs…';
     try {
-      const res = await fetch(`/container/${id}/logs?tail=50`);
+      const res = await fetch(`/container/${currentLogsId}/logs?tail=200`);
       const data = await res.json();
-      if (res.ok) {
-        const logs = data.data || 'No logs available';
-        alert(`Logs for "${name}":\n\n${logs.substring(0, 500)}${logs.length > 500 ? '\n...' : ''}`);
-      } else {
-        alert('Error: ' + data.message);
-      }
+      body.textContent = res.ok ? (data.data || 'No logs available') : `Error: ${data.message}`;
     } catch (err) {
-      alert('Error: ' + err.message);
+      body.textContent = `Network error: ${err.message}`;
     }
   }
+
+  function copyLogs() {
+    copyText(document.getElementById('logsModalBody').textContent, 'Logs');
+  }
+
+  function closeLogsModal() {
+    document.getElementById('logsModal').classList.remove('open');
+    currentLogsId = null;
+  }
+
+  document.getElementById('logsModal').addEventListener('click', (e) => {
+    if (e.target.id === 'logsModal') closeLogsModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeLogsModal();
+  });
 
   function escHtml(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // For use inside single-quoted onclick="...('...')" attributes — also closes
+  // off the quote so a name/id containing one can't break out of the handler.
+  function escAttr(s) {
+    return escHtml(s).replace(/'/g, '&#39;');
   }
 
   loadContainers();

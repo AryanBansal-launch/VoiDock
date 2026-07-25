@@ -1,0 +1,18 @@
+FROM node:26-alpine
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+
+RUN npm ci --omit=dev
+
+COPY . .
+
+ENV VOIDOCK_DRIVER=sandbox
+
+# Vercel Functions route container traffic to :80. Pin it here rather than relying
+# on the VERCEL env var being present at runtime. A PORT project env var still wins,
+# but then it must match what Vercel routes to.
+ENV PORT=80
+
+CMD ["npm", "start"]

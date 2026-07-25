@@ -5,27 +5,18 @@ import { dirname, join } from 'path';
 import cors from 'cors';
 import httpProxy from 'http-proxy';
 
-import {
-    ensureImage,
-    runContainer,
-    listContainers,
-    stopContainer,
-    startContainer,
-    restartContainer,
-    removeContainer,
-    getContainerLogs,
-} from './docker.js';
-import docker from './docker.js';
+import driver from './drivers/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const indexHtml = readFileSync(join(__dirname, 'index.html'));
 
-const MANAGEMENT_APP_PORT = process.env.MANAGEMENT_APP_PORT || 8080;
-const REVERSE_PROXY_HOST = process.env.REVERSE_PROXY_HOST ?? 'localhost';
+// Vercel routes container traffic to :80 unless PORT is set in project settings.
+const MANAGEMENT_APP_PORT =
+    process.env.PORT ??
+    process.env.MANAGEMENT_APP_PORT ??
+    (process.env.VERCEL ? 80 : 8080);
 
 const managementApp = express();
-const proxyApp = express()
-const proxy = httpProxy.createProxy();
 managementApp.use(express.json());
 managementApp.use(cors());
 
@@ -35,11 +26,14 @@ managementApp.get('/', (req, res) => {
 });
 
 managementApp.get('/health', (_req, res) => {
-    return res.json({ status: 'Management App is up and Running.' });
+    return res.json({
+        status: 'Management App is up and Running.',
+        driver: driver.name,
+    });
 });
 
 managementApp.post('/container', async (req, res) => {
-    const { image, tag } = req.body;
+    const { image, tag, port, env } = req.body;
 
     if (!image || !tag) {
         return res.status(400).json({
@@ -48,20 +42,38 @@ managementApp.post('/container', async (req, res) => {
         });
     }
 
-    try {
-        await ensureImage(image, tag);
-        const inspect = await runContainer(image, tag);
+    if (port !== undefined && (!Number.isInteger(port) || port < 1 || port > 65535)) {
+        return res.status(400).json({
+            status: 'error',
+            message: '"port" must be an integer between 1 and 65535.',
+        });
+    }
 
-        const domain = `${inspect.Name.replace('/', '')}.${REVERSE_PROXY_HOST}`;
+    if (
+        env !== undefined &&
+        (typeof env !== 'object' || env === null || Array.isArray(env) ||
+            Object.values(env).some((v) => typeof v !== 'string'))
+    ) {
+        return res.status(400).json({
+            status: 'error',
+            message: '"env" must be a flat object of string values, e.g. {"POSTGRES_PASSWORD": "..."}.',
+        });
+    }
+
+    try {
+        const container = await driver.create({ image, tag, port, env });
 
         return res.json({
             status: 'success',
             data: {
-                containerName: inspect.Name.replace('/', ''),
-                domain,
-                url: `http://${domain}`,
-                },
-            });
+                containerName: container.name,
+                domain: container.domain,
+                url: container.url,
+                // Raw TCP passthrough for non-HTTP images (Redis, Postgres, ...) —
+                // only set when `port` was requested and the driver supports it.
+                tcpAddress: container.tcpAddress ?? null,
+            },
+        });
     } catch (err) {
         console.error('Failed to start container:', err);
         return res.status(500).json({
@@ -73,19 +85,9 @@ managementApp.post('/container', async (req, res) => {
 
 managementApp.get('/list', async (_req, res) => {
     try {
-        const containers = await listContainers();
-
         return res.json({
             status: 'success',
-            data: containers.map((container) => {
-                const domain = `${container.name}.${REVERSE_PROXY_HOST}`;
-        
-                return {
-                    ...container,
-                    domain,
-                    url: `http://${domain}`,
-                };
-            }),
+            data: await driver.list(),
         });
     } catch (err) {
         console.error('Failed to list containers:', err);
@@ -97,50 +99,31 @@ managementApp.get('/list', async (_req, res) => {
     }
 });
 
-managementApp.post('/container/:id/stop', async (req, res) => {
-    try {
-        await stopContainer(req.params.id);
-        return res.json({ status: 'success', message: 'Container stopped' });
-    } catch (err) {
-        console.error('Failed to stop container:', err);
-        return res.status(500).json({ status: 'error', message: err.message });
-    }
-});
+// stop/start/restart/delete differ only in the driver call and the past-tense word
+// in the response, so register them from one table.
+const LIFECYCLE = [
+    { path: '/container/:id/stop', method: 'post', action: 'stop', past: 'stopped' },
+    { path: '/container/:id/start', method: 'post', action: 'start', past: 'started' },
+    { path: '/container/:id/restart', method: 'post', action: 'restart', past: 'restarted' },
+    { path: '/container/:id', method: 'delete', action: 'remove', past: 'removed' },
+];
 
-managementApp.post('/container/:id/start', async (req, res) => {
-    try {
-        await startContainer(req.params.id);
-        return res.json({ status: 'success', message: 'Container started' });
-    } catch (err) {
-        console.error('Failed to start container:', err);
-        return res.status(500).json({ status: 'error', message: err.message });
-    }
-});
-
-managementApp.post('/container/:id/restart', async (req, res) => {
-    try {
-        await restartContainer(req.params.id);
-        return res.json({ status: 'success', message: 'Container restarted' });
-    } catch (err) {
-        console.error('Failed to restart container:', err);
-        return res.status(500).json({ status: 'error', message: err.message });
-    }
-});
-
-managementApp.delete('/container/:id', async (req, res) => {
-    try {
-        await removeContainer(req.params.id);
-        return res.json({ status: 'success', message: 'Container removed' });
-    } catch (err) {
-        console.error('Failed to remove container:', err);
-        return res.status(500).json({ status: 'error', message: err.message });
-    }
-});
+for (const { path, method, action, past } of LIFECYCLE) {
+    managementApp[method](path, async (req, res) => {
+        try {
+            await driver[action](req.params.id);
+            return res.json({ status: 'success', message: `Container ${past}` });
+        } catch (err) {
+            console.error(`Failed to ${action} container:`, err);
+            return res.status(500).json({ status: 'error', message: err.message });
+        }
+    });
+}
 
 managementApp.get('/container/:id/logs', async (req, res) => {
     try {
         const tail = parseInt(req.query.tail) || 100;
-        const logs = await getContainerLogs(req.params.id, tail);
+        const logs = await driver.logs(req.params.id, tail);
         return res.json({ status: 'success', data: logs });
     } catch (err) {
         console.error('Failed to get logs:', err);
@@ -149,74 +132,55 @@ managementApp.get('/container/:id/logs', async (req, res) => {
 });
 
 managementApp.listen(MANAGEMENT_APP_PORT, () => {
-    console.log(`Management API is running on PORT : ${MANAGEMENT_APP_PORT}`);
+    console.log(
+        `Management API is running on PORT : ${MANAGEMENT_APP_PORT} (driver: ${driver.name})`
+    );
 });
-
 
 // Reverse proxy server
-proxyApp.use(async (req, res) => {
-    const containerName = req.hostname.split('.')[0];
+//
+// Only drivers that put workloads on a private network need this. The sandbox
+// driver hands out public URLs directly, and binding :80 would fail on Vercel.
+if (driver.needsProxy) {
+    const proxyApp = express();
+    const proxy = httpProxy.createProxy();
 
-    try {
-        const containers = await listContainers();
-        const container = containers.find((c) => c.name === containerName);
+    proxyApp.use(async (req, res) => {
+        const hostLabel = req.hostname.split('.')[0];
 
-        if (!container) {
-            return res.status(404).json({
-                status: 'error',
-                message: `Container "${containerName}" not found.`,
+        try {
+            const target = await driver.resolveTarget(hostLabel);
+
+            proxy.web(req, res, { target }, (err) => {
+                if (!res.headersSent) {
+                    console.error(`Proxy error for ${hostLabel}:`, err.message);
+                    return res.status(502).json({
+                        status: 'error',
+                        message: `Failed to proxy request: ${err.message}`,
+                    });
+                }
             });
-        }
-
-        if (container.state !== 'running') {
-            return res.status(503).json({
-                status: 'error',
-                message: `Container "${containerName}" is not running (state: ${container.state}).`,
-            });
-        }
-
-        const dockerContainer = docker.getContainer(container.id);
-        const inspect = await dockerContainer.inspect();
-        const ip =
-            inspect.NetworkSettings.Networks['voidock-network']?.IPAddress;
-
-        if (!ip) {
-            return res.status(502).json({
-                status: 'error',
-                message: `Container "${containerName}" not connected to voidock-network.`,
-            });
-        }
-
-        const target = `http://${ip}:80`;
-        proxy.web(req, res, { target }, (err) => {
+        } catch (err) {
             if (!res.headersSent) {
-                console.error(`Proxy error for ${containerName} (${ip}):`, err.message);
-                return res.status(502).json({
+                console.error('Proxy lookup error:', err.message);
+                return res.status(err.status ?? 500).json({
                     status: 'error',
-                    message: `Failed to proxy request: ${err.message}`,
+                    message: err.message,
                 });
             }
-        });
-    } catch (err) {
+        }
+    });
+
+    proxy.on('error', (err, _req, res) => {
         if (!res.headersSent) {
-            console.error('Proxy lookup error:', err.message);
-            return res.status(500).json({
+            res.status(502).json({
                 status: 'error',
-                message: `Internal proxy error: ${err.message}`,
+                message: `Proxy error: ${err.message}`,
             });
         }
-    }
-});
+    });
 
-proxy.on('error', (err, _req, res) => {
-    if (!res.headersSent) {
-        res.status(502).json({
-            status: 'error',
-            message: `Proxy error: ${err.message}`,
-        });
-    }
-});
-
-proxyApp.listen(80, () => {
-    console.log('Reverse proxy is running on port 80');
-});
+    proxyApp.listen(80, () => {
+        console.log('Reverse proxy is running on port 80');
+    });
+}

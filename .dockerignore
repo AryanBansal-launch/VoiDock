@@ -1,0 +1,7 @@
+node_modules
+.git
+# .env.local holds VERCEL_OIDC_TOKEN from `vercel env pull` — never bake it in.
+.env*
+.vercel
+.vscode
+.claude
