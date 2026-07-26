@@ -76,5 +76,18 @@ a Firecracker microVM running its own `dockerd`, with the workload's
 `restart()` block until something answers on `WORKLOAD_PORT` before returning —
 `docker run -d` only guarantees the container exists, not that it's listening yet.
 
+**Auth is explicit access tokens, not automatic OIDC**, despite what the SDK's
+own docs suggest for "deployed on Vercel." The Sandbox SDK's OIDC auto-detection
+reads a `globalThis` symbol (`@vercel/oidc`'s `getContext()`) that only Vercel's
+own Node.js/Edge function runtime populates per-request. This driver runs inside
+[Dockerfile.vercel](../Dockerfile.vercel) — a plain Express server that Vercel
+just forwards raw HTTP traffic to — so that symbol is never set, and no
+Project Settings toggle changes that. `CREDENTIALS` in this file builds an
+explicit `{ token, teamId, projectId }` from `VERCEL_TOKEN`/`VERCEL_TEAM_ID`/
+`VERCEL_PROJECT_ID` and is spread into every `Sandbox.get/create/list()` call,
+which the SDK's `getCredentialsFromParams()` accepts in place of OIDC lookup
+entirely. Locally these env vars stay unset and `vercel env pull`'s
+`VERCEL_OIDC_TOKEN` — read through a genuinely different code path — still works.
+
 Selection happens in [index.js](index.js): `VOIDOCK_DRIVER=docker|sandbox`,
 defaulting to `sandbox` when `VERCEL` is set and `docker` otherwise.

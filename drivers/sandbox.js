@@ -37,6 +37,24 @@ const READY_TIMEOUT_S = Number(process.env.SANDBOX_READY_TIMEOUT_S ?? 60);
 // sharing the same Vercel project.
 const OWNER_TAG = { voidock: '1' };
 
+// The Sandbox SDK's automatic OIDC detection reads a `globalThis` symbol that
+// only Vercel's own Node.js/Edge function runtime populates per-request — a
+// custom container image (Dockerfile.vercel) runs its own plain HTTP server
+// instead, which Vercel just forwards raw traffic to, so that symbol is never
+// set and OIDC auto-detection can never succeed here, no matter what's toggled
+// in Project Settings. Verified by reading @vercel/oidc's own getContext().
+// The fix is the SDK's other documented path: explicit access-token
+// credentials, which bypass OIDC entirely. Locally these stay unset and the
+// existing `vercel env pull`-based OIDC flow is untouched.
+const CREDENTIALS =
+    process.env.VERCEL_TOKEN && process.env.VERCEL_TEAM_ID && process.env.VERCEL_PROJECT_ID
+        ? {
+              token: process.env.VERCEL_TOKEN,
+              teamId: process.env.VERCEL_TEAM_ID,
+              projectId: process.env.VERCEL_PROJECT_ID,
+          }
+        : {};
+
 export const name = 'sandbox';
 
 // sandbox.domain() already hands out a public URL per workload.
@@ -266,7 +284,7 @@ async function markReady(sandbox, ready) {
 
 async function get(id, { resume = true } = {}) {
     const { Sandbox } = await sdk();
-    return Sandbox.get({ name: id, resume });
+    return Sandbox.get({ name: id, resume, ...CREDENTIALS });
 }
 
 export async function create({ image, tag, port, env }) {
@@ -296,6 +314,7 @@ export async function create({ image, tag, port, env }) {
         },
         // Restarting dockerd on every resume is what makes stop/start survive.
         onResume: (sbx) => ensureDocker(sbx),
+        ...CREDENTIALS,
     });
 
     try {
@@ -317,7 +336,7 @@ export async function create({ image, tag, port, env }) {
 
 export async function list() {
     const { Sandbox } = await sdk();
-    const result = await Sandbox.list({ tags: OWNER_TAG });
+    const result = await Sandbox.list({ tags: OWNER_TAG, ...CREDENTIALS });
 
     const metas = [];
     for await (const meta of result) {

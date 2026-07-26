@@ -99,11 +99,13 @@ are higher when what's exposed is a database.
 Vercel Functions can't reach a Docker socket and can't bind two ports, so the `docker` driver cannot run there. The `sandbox` driver exists for that case: it drives Vercel Sandbox microVMs, which explicitly support system-privileged processes like `dockerd`.
 
 1. `npx vercel link`
-2. Project Settings → Security → enable **OIDC Federation** (the Sandbox SDK authenticates over this — skip it and every `POST /container` fails with a credentials error)
-3. Set the sandbox env vars below in Project Settings → Environment Variables
+2. Create a [Vercel access token](https://vercel.com/account/tokens) and set `VERCEL_TOKEN`, `VERCEL_TEAM_ID`, `VERCEL_PROJECT_ID` in Project Settings → Environment Variables (Production + Preview) — see `.env.example` for exactly where each ID comes from
+3. Set the other sandbox env vars below too
 4. `npx vercel deploy --prod` — [Dockerfile.vercel](Dockerfile.vercel) is auto-detected
 
-For local runs against real sandboxes: `npx vercel env pull` writes `.env.local` with the OIDC token.
+**Toggling "OIDC Federation" in Project Settings → Security does *not* fix credentials here** — worth stating plainly since it's the natural first thing to try, and it's a dead end. That toggle only wires up Vercel's *own* Node.js/Edge function runtime to inject the OIDC token per-request. `Dockerfile.vercel` runs a plain Express server that Vercel just forwards raw HTTP traffic to — it never receives that per-request context, so the SDK's automatic OIDC path can't succeed no matter what's enabled. The explicit access token above is the only thing that actually works here, confirmed by reading `@vercel/oidc`'s own source: its OIDC lookup depends on a `globalThis` symbol only Vercel's standard function runtime populates.
+
+For local runs against real sandboxes: `npx vercel env pull` writes `.env.local` with a short-lived `VERCEL_OIDC_TOKEN` (12 hours) — that one's fine for local dev, since the SDK's local fallback path is different from the production one and doesn't hit this issue.
 
 Trade-offs worth knowing before you pick this path:
 
