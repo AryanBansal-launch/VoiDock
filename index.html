@@ -96,6 +96,72 @@
     }
     @media (max-width: 720px) { main { grid-template-columns: 1fr; } }
 
+    /* ── How it works ── */
+    .how-it-works { grid-column: 1 / -1; }
+    .how-it-works .card-header {
+      cursor: pointer;
+      user-select: none;
+      justify-content: space-between;
+    }
+    .how-it-works .card-header-left { display: flex; align-items: center; gap: 8px; }
+    .how-it-works-chevron { transition: transform 0.15s; opacity: 0.6; }
+    .how-it-works.open .how-it-works-chevron { transform: rotate(180deg); }
+    .how-it-works-body { display: none; }
+    .how-it-works.open .how-it-works-body { display: block; }
+    .how-it-works-columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    @media (max-width: 720px) { .how-it-works-columns { grid-template-columns: 1fr; } }
+    .how-it-works-col-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-bottom: 10px;
+    }
+    .how-it-works ol {
+      list-style: none;
+      counter-reset: steps;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .how-it-works li {
+      counter-increment: steps;
+      display: flex;
+      gap: 10px;
+      font-size: 0.85rem;
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .how-it-works li::before {
+      content: counter(steps);
+      flex-shrink: 0;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .how-it-works li strong { font-weight: 600; }
+    .how-it-works-note {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
     /* ── Cards ── */
     .card {
       background: var(--surface);
@@ -547,6 +613,51 @@
 </header>
 
 <main>
+  <!-- How it works -->
+  <div class="card how-it-works" id="howItWorks">
+    <div class="card-header" onclick="toggleHowItWorks()">
+      <div class="card-header-left">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M7 4.5v.01M6.3 9.5h1.4M7 6.5v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        How It Works
+      </div>
+      <svg class="how-it-works-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <path d="M2.5 4.5L6 8l3.5-3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div class="how-it-works-body">
+      <div class="card-body">
+        <div class="how-it-works-columns">
+          <div>
+            <div class="how-it-works-col-title">
+              HTTP images <span class="pill pill-http">nginx, httpd, caddy, ...</span>
+            </div>
+            <ol>
+              <li><span><strong>Launch</strong> — pick an HTTP image below (or type your own) and hit Launch. No TCP Port needed.</span></li>
+              <li><span><strong>Get a URL</strong> — the response includes a domain the moment the workload is ready.</span></li>
+              <li><span><strong>Open it</strong> — visit the URL in a browser, or <code>curl</code> it.</span></li>
+            </ol>
+          </div>
+          <div>
+            <div class="how-it-works-col-title">
+              Non-HTTP images <span class="pill pill-tcp">redis, postgres, ...</span>
+            </div>
+            <ol>
+              <li><span><strong>Launch with a TCP Port</strong> set (e.g. 6379 for Redis) — and an Environment Variable if the image needs a credential just to boot (Postgres, MySQL).</span></li>
+              <li><span><strong>Get a <code>tcpAddress</code></strong> — a raw <code>host:port</code>, not a URL.</span></li>
+              <li><span><strong>Connect with the service's own client</strong> — <code>redis-cli</code>, <code>psql</code>, not a browser.</span></li>
+            </ol>
+          </div>
+        </div>
+        <p class="how-it-works-note">
+          Non-HTTP support (the TCP Port field) only works on the <code>docker</code> engine — check the badge in the header. A published TCP address can change after a stop/restart, so always read the current one off the container card rather than hardcoding it.
+        </p>
+      </div>
+    </div>
+  </div>
+
   <!-- Launch form -->
   <div class="card">
     <div class="card-header">
@@ -660,6 +771,11 @@
 <div class="toast" id="toast"></div>
 
 <script>
+  // ── How it works ──
+  function toggleHowItWorks() {
+    document.getElementById('howItWorks').classList.toggle('open');
+  }
+
   // ── Health check ──
   let currentDriver = null;
 
